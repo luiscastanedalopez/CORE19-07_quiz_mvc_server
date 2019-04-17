@@ -52,6 +52,7 @@ const style = `
                 background: #4479BA; color: #FFF;
                 border-radius: 4px; border: solid 1px #20538D; }
             .button:hover { background: #356094; }
+            
         </style>`;
 
 // View to display all the quizzes passed into the quizzes parameter.
@@ -64,16 +65,20 @@ const indexView = quizzes =>
         ${style}
     </head>
     <body>
-        <h1>Quizzes</h1>` +
+         <h1>Quizzes</h1>` +
     quizzes.map(quiz =>
         `<div>
-                <a href="/quizzes/${quiz.id}/play">${quiz.question}</a>
-                <a href="/quizzes/${quiz.id}/edit"
-                   class="button">Edit</a>
-                <a href="/quizzes/${quiz.id}?_method=DELETE"
-                   onClick="return confirm('Delete: ${quiz.question}')"
-                   class="button">Delete</a>
-             </div>`).join("\n") +
+            <table>
+                <tr>
+                    <th width="150" align="left"><a href="/quizzes/${quiz.id}/play">${quiz.question}</a></th>
+                    <td><a href="/quizzes/${quiz.id}/edit" 
+                    class="button">Edit</a></td>
+                    <td><a href="/quizzes/${quiz.id}?_method=DELETE"
+                    onClick="return confirm('Delete: ${quiz.question}')"
+                    class="button">Delete</a></td>
+                </tr>
+            </table>  
+        </div>`).join("\n") +
     `<a href="/quizzes/new" class="button">New Quiz</a>
     </body>
     </html>`;
@@ -149,9 +154,24 @@ placeholder="Answer" />
 
 // View to show a form to edit the given quiz.
 const editView = (quiz) => {
-    // .... introducir código
+    return `<!doctype html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>P7: Quiz</title>
+        ${style}
+    </head>
+    <body>
+        <h1>Edit Quiz</h1>
+        <form method="POST" action="/quizzes/${quiz.id} ?_method=PUT">
+            Question: <input type="text" name="question" value="${quiz.question}"/> <br />
+            Answer: <input type="text" name="answer"   value="${quiz.answer}"/>
+            <input type="submit" class="button" value="Update" /> <br />
+        </form>
+        <a href="/quizzes" class="button">Go back</a>
+    </body>
+    </html>`;
 };
-
 
 // ========== CONTROLLERs ==========
 
@@ -215,17 +235,52 @@ const createController = (req, res, next) => {
 
 //  GET /quizzes/:id/edit
 const editController = (req, res, next) => {
-    // .... introducir código
+
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return next(`id "${req.params.id}" is not a number.`);
+
+    Quiz.findByPk(id)
+        .then(quiz => quiz ?
+            res.send(editView(quiz)) :
+            next(new Error(`Quiz ${id} not found.`))
+        )
+        .catch(next);
 };
 
 //  PUT /quizzes/:id
 const updateController = (req, res, next) => {
-    // .... introducir código
+    let {question, answer} = req.body;
+
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return next(`id "${req.params.id}" is not a number.`);
+
+    Quiz.findByPk(id)
+        .then(quiz => {
+            if (!Quiz) {
+                return next(new Error(`Quiz ${id} not found.`));
+            }
+
+            quiz.question = question;
+            quiz.answer = answer;
+
+            return quiz.save();
+        })
+        .then(()=> res.redirect('/quizzes'))
+        .catch(next);
 };
 
 // DELETE /quizzes/:id
 const destroyController = (req, res, next) => {
-    // .... introducir código
+    const id = Number(req.params.id);
+    if (Number.isNaN(id)) return next(`id "${req.params.id}" is not a number.`);
+
+    Quiz.findByPk(id)   // Sequelize v5 utiliza findByPk en vez de findById (esta deprecado)
+        .then(quiz => {
+            if (!quiz) return next(new Error(`Quiz ${id} not found.`));
+            quiz.destroy();
+            res.redirect('/quizzes')
+        })
+        .catch(next);
 };
 
 
@@ -236,11 +291,9 @@ app.get('/quizzes/:id/play', playController);
 app.get('/quizzes/:id/check', checkController);
 app.get('/quizzes/new', newController);
 app.post('/quizzes', createController);
-
-// ..... crear rutas e instalar los MWs para:
-//   GET  /quizzes/:id/edit
-//   PUT  /quizzes/:id
-//   DELETE  /quizzes/:id
+app.get('/quizzes/:id/edit', editController);
+app.put('/quizzes/:id',updateController);
+app.delete('/quizzes/:id',destroyController);
 
 
 app.all('*', (req, res) =>
